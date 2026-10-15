@@ -1,0 +1,69 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-parchment: #f4ecd8;
+  --color-parchment-dark: #e8dcc0;
+  --color-ink: #2b2419;
+  --color-keep: #2f4a7c;
+  --color-court: #7c4a2f;
+
+  --color-az: #2f6fed;
+  --color-vi: #8b5cf6;
+  --color-ve: #1fab6b;
+  --color-cr: #e23b4e;
+  --color-am: #f08a24;
+  --color-go: #eab308;
+
+  --font-display: ui-serif, Georgia, 'Times New Roman', serif;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100vh;
+  width: 100%;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #3a3326 0%, transparent 60%),
+    linear-gradient(160deg, #1a1710 0%, #241f16 50%, #16130d 100%);
+  color: #e9e2d0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Pulse animation for the Heartbeat visual */
+@keyframes heartbeat {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.06); filter: brightness(1.3); }
+  50% { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+.animate-heartbeat {
+  animation: heartbeat 0.6s ease-in-out;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.6) translateY(8px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.animate-pop {
+  animation: popIn 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+@keyframes floatUp {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-32px); opacity: 0; }
+}
+.animate-float {
+  animation: floatUp 1s ease-out forwards;
+}
+
+.card-shadow {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+.inset-panel {
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+}
