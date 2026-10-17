@@ -1,11 +1,26 @@
 @import 'tailwindcss';
 
+/* Bundled pixel fonts (no CDN dependency) */
+@import '@fontsource/silkscreen/400.css';
+@import '@fontsource/silkscreen/700.css';
+@import '@fontsource/press-start-2p/400.css';
+
 @theme {
-  --color-parchment: #f4ecd8;
-  --color-parchment-dark: #e8dcc0;
-  --color-ink: #2b2419;
-  --color-keep: #2f4a7c;
-  --color-court: #7c4a2f;
+  /* Warm "board game on a wooden table" palette — deliberately not a dark
+     glassy gradient. Flat, saturated, tactile. */
+  --color-table: #8c5a32;
+  --color-table-dark: #6b4324;
+  --color-felt: #2f6b4f;
+  --color-parch: #f4ecd8;
+  --color-parch-2: #e7d9b8;
+  --color-parch-3: #d4c096;
+  --color-ink: #2b1d13;
+  --color-ink-soft: #5c4631;
+
+  --color-keep: #3a5fa8;
+  --color-keep-dark: #27407a;
+  --color-court: #b4652a;
+  --color-court-dark: #8a4a1c;
 
   --color-az: #2f6fed;
   --color-vi: #8b5cf6;
@@ -14,56 +29,253 @@
   --color-am: #f08a24;
   --color-go: #eab308;
 
-  --font-display: ui-serif, Georgia, 'Times New Roman', serif;
+  --color-gold: #e8a52c;
+  --color-gold-light: #ffd96b;
+
+  --font-pixel: 'Silkscreen', ui-monospace, monospace;
+  --font-title: 'Press Start 2P', 'Silkscreen', monospace;
+  --font-body:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 html,
 body,
 #root {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100%;
   width: 100%;
 }
 
 body {
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, #3a3326 0%, transparent 60%),
-    linear-gradient(160deg, #1a1710 0%, #241f16 50%, #16130d 100%);
-  color: #e9e2d0;
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  /* Woven felt table surface, built from flat repeating gradients (no blur) */
+  background-color: #35724f;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(0, 0, 0, 0.05) 0 2px,
+      transparent 2px 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.04) 0 2px,
+      transparent 2px 4px
+    );
   -webkit-font-smoothing: antialiased;
 }
 
-/* Pulse animation for the Heartbeat visual */
-@keyframes heartbeat {
-  0% { transform: scale(1); }
-  25% { transform: scale(1.06); filter: brightness(1.3); }
-  50% { transform: scale(1); }
-  100% { transform: scale(1); }
-}
-.animate-heartbeat {
-  animation: heartbeat 0.6s ease-in-out;
+/* ---- Pixel-art rendering: never smooth our sprites ---- */
+.pixel {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
-@keyframes popIn {
-  0% { transform: scale(0.6) translateY(8px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
+/* ---- Hard-edged "pixel panel" chrome (replaces soft shadows) ---- */
+.panel {
+  background: var(--color-parch);
+  border: 3px solid var(--color-ink);
+  box-shadow:
+    0 4px 0 0 var(--color-ink),
+    inset -3px -3px 0 0 rgba(0, 0, 0, 0.12),
+    inset 3px 3px 0 0 rgba(255, 255, 255, 0.5);
 }
-.animate-pop {
-  animation: popIn 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+.panel-dark {
+  background: #3b2a1b;
+  border: 3px solid #1a1109;
+  box-shadow:
+    0 4px 0 0 #1a1109,
+    inset -3px -3px 0 0 rgba(0, 0, 0, 0.3),
+    inset 3px 3px 0 0 rgba(255, 255, 255, 0.08);
+  color: var(--color-parch);
+}
+
+/* Chunky pressable button */
+.btn {
+  font-family: var(--font-pixel);
+  background: var(--color-parch-2);
+  border: 3px solid var(--color-ink);
+  box-shadow:
+    0 4px 0 0 var(--color-ink),
+    inset 2px 2px 0 0 rgba(255, 255, 255, 0.55);
+  transition:
+    transform 0.06s steps(2),
+    box-shadow 0.06s steps(2),
+    filter 0.1s;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow:
+    0 0 0 0 var(--color-ink),
+    inset 2px 2px 0 0 rgba(255, 255, 255, 0.4);
+}
+.btn:disabled {
+  filter: grayscale(0.7) brightness(0.9);
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: 0 4px 0 0 rgba(43, 29, 19, 0.5);
+}
+.btn-primary {
+  background: linear-gradient(
+    180deg,
+    var(--color-gold-light) 0%,
+    var(--color-gold) 100%
+  );
+}
+
+/* ---- Animations: short, steppy, pixel-appropriate ---- */
+@keyframes popIn {
+  0% {
+    transform: scale(0.7) translateY(6px);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.06) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.anim-pop {
+  animation: popIn 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+
+@keyframes dealIn {
+  0% {
+    transform: translateY(-26px) rotate(-6deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+}
+.anim-deal {
+  animation: dealIn 0.28s ease-out backwards;
+}
+
+@keyframes beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.1);
+    filter: brightness(1.35);
+  }
+  60% {
+    transform: scale(0.98);
+  }
+}
+.anim-beat {
+  animation: beat 0.5s ease-in-out;
 }
 
 @keyframes floatUp {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-32px); opacity: 0; }
+  0% {
+    transform: translateY(0) scale(0.9);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.1);
+  }
+  100% {
+    transform: translateY(-44px) scale(1);
+    opacity: 0;
+  }
 }
-.animate-float {
-  animation: floatUp 1s ease-out forwards;
+.anim-float {
+  animation: floatUp 1.1s ease-out forwards;
 }
 
-.card-shadow {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 6px 16px rgba(0, 0, 0, 0.25);
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 0 0 var(--color-ink),
+      0 0 0 0 rgba(255, 217, 107, 0.9);
+  }
+  50% {
+    box-shadow:
+      0 4px 0 0 var(--color-ink),
+      0 0 0 6px rgba(255, 217, 107, 0.45);
+  }
 }
-.inset-panel {
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+.anim-glow {
+  animation: glowPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes slotBlink {
+  0%,
+  100% {
+    background-color: rgba(255, 217, 107, 0.18);
+  }
+  50% {
+    background-color: rgba(255, 217, 107, 0.42);
+  }
+}
+.anim-slot {
+  animation: slotBlink 1s steps(2, end) infinite;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+.anim-shake {
+  animation: shake 0.2s steps(2) 2;
+}
+
+@keyframes bannerIn {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.anim-banner {
+  animation: bannerIn 0.25s ease-out;
+}
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  .anim-pop,
+  .anim-deal,
+  .anim-beat,
+  .anim-float,
+  .anim-glow,
+  .anim-slot,
+  .anim-shake,
+  .anim-banner {
+    animation: none !important;
+  }
+}
+
+/* Thin scrollbar that matches the parchment theme */
+.scroll-parch::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-parch::-webkit-scrollbar-track {
+  background: rgba(43, 29, 19, 0.15);
+}
+.scroll-parch::-webkit-scrollbar-thumb {
+  background: var(--color-ink-soft);
+  border: 2px solid transparent;
 }

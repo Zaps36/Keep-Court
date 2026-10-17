@@ -1,9 +1,13 @@
 // ============================================================================
 // Zustand store wrapping the pure engine. We deep-clone before each mutation
 // so React sees new references (engine functions mutate in place by design).
+// Presentation-only state (avatars, animation ticks) lives here, not in the
+// engine, so the engine stays portable.
 // ============================================================================
 
 import { create } from 'zustand'
+import { playAITurn } from '../engine/ai'
+import type { EffectChoices } from '../engine/effects'
 import {
   buyCard as engineBuy,
   createGame,
@@ -12,41 +16,65 @@ import {
   refreshRowAction,
   takeVagabond as engineVagabond,
 } from '../engine/engine'
-import { playAITurn } from '../engine/ai'
-import type { EffectChoices } from '../engine/effects'
 import type { CellIndex, DeckId, GameConfig, GameState } from '../engine/types'
 
 interface Store {
   game: GameState | null
-  /** Set of player ids controlled by AI (for hotseat vs bots). */
   aiPlayers: Set<number>
-  /** UI selection: pending choices before placing (herald move toggle, etc.). */
+  /** Avatar sprite id per player index. */
+  avatars: string[]
   pendingChoices: EffectChoices
-  newGame: (config: GameConfig, aiPlayers?: number[]) => void
+  /** Grid cells of player 0 that pulsed on the latest heartbeat. */
+  beatingCells: number[]
+  /** True while a heartbeat banner is showing. */
+  heartbeatRound: number | null
+
+  newGame: (config: GameConfig, aiPlayers: number[], avatars: string[]) => void
+  quit: () => void
   moveHerald: () => void
   refreshRow: () => void
   buy: (deck: DeckId, index: number) => void
   vagabond: (deck: DeckId, index: number) => void
   place: (cell: CellIndex) => void
   setChoices: (c: EffectChoices) => void
-  runAITurnsIfNeeded: () => void
+  runAITurns: () => void
 }
 
-function clone(g: GameState): GameState {
-  return structuredClone(g)
+const clone = (g: GameState): GameState => structuredClone(g)
+
+/** Cells of player 0 holding a face-up card with a pulse power. */
+function pulseCells(g: GameState): number[] {
+  const p = g.players[0]
+  if (!p) return []
+  const out: number[] = []
+  p.grid.forEach((c, i) => {
+    if (c && !c.faceDown && c.def.pulse) out.push(i)
+  })
+  return out
 }
 
 export const useGame = create<Store>((set, get) => ({
   game: null,
   aiPlayers: new Set(),
+  avatars: [],
   pendingChoices: {},
+  beatingCells: [],
+  heartbeatRound: null,
 
-  newGame: (config, aiPlayers = []) => {
-    const g = createGame(config)
-    set({ game: g, aiPlayers: new Set(aiPlayers), pendingChoices: {} })
-    // If the first player is an Automa or AI, advance.
-    setTimeout(() => get().runAITurnsIfNeeded(), 50)
+  newGame: (config, aiPlayers, avatars) => {
+    set({
+      game: createGame(config),
+      aiPlayers: new Set(aiPlayers),
+      avatars,
+      pendingChoices: {},
+      beatingCells: [],
+      heartbeatRound: null,
+    })
+    setTimeout(() => get().runAITurns(), 300)
   },
+
+  quit: () =>
+    set({ game: null, beatingCells: [], heartbeatRound: null, pendingChoices: {} }),
 
   moveHerald: () => {
     const g = clone(get().game!)
@@ -73,32 +101,50 @@ export const useGame = create<Store>((set, get) => ({
   },
 
   place: (cell) => {
-    const g = clone(get().game!)
+    const before = get().game!
+    const roundBefore = before.round
+    const g = clone(before)
     enginePlace(g, cell, get().pendingChoices)
-    set({ game: g, pendingChoices: {} })
-    setTimeout(() => get().runAITurnsIfNeeded(), 350)
+
+    // A heartbeat happened if the round advanced or the game just ended.
+    const beat = g.round !== roundBefore || g.phase === 'gameOver'
+    set({
+      game: g,
+      pendingChoices: {},
+      beatingCells: beat ? pulseCells(g) : [],
+      heartbeatRound: beat ? roundBefore : null,
+    })
+    if (beat) {
+      setTimeout(() => set({ beatingCells: [], heartbeatRound: null }), 900)
+    }
+    setTimeout(() => get().runAITurns(), beat ? 950 : 420)
   },
 
   setChoices: (c) => set({ pendingChoices: { ...get().pendingChoices, ...c } }),
 
-  runAITurnsIfNeeded: () => {
-    const state = get()
-    let g = state.game
-    if (!g || g.phase === 'gameOver') return
-    const aiSet = state.aiPlayers
-    // Step through AI turns one at a time with a visible delay.
+  runAITurns: () => {
     const step = () => {
-      const cur = get().game
-      if (!cur || cur.phase === 'gameOver') return
-      const isAI = aiSet.has(cur.current) || cur.players[cur.current].isAutoma
+      const state = get()
+      const g = state.game
+      if (!g || g.phase === 'gameOver') return
+      const isAI =
+        state.aiPlayers.has(g.current) || g.players[g.current].isAutoma
       if (!isAI) return
-      const draft = clone(cur)
-      // Automa turns resolve inside engine automatically; for AI players, drive one action.
-      if (!draft.players[draft.current].isAutoma) {
-        playAITurn(draft)
+
+      const roundBefore = g.round
+      const draft = clone(g)
+      if (!draft.players[draft.current].isAutoma) playAITurn(draft)
+      const beat = draft.round !== roundBefore || draft.phase === 'gameOver'
+
+      set({
+        game: draft,
+        beatingCells: beat ? pulseCells(draft) : [],
+        heartbeatRound: beat ? roundBefore : null,
+      })
+      if (beat) {
+        setTimeout(() => set({ beatingCells: [], heartbeatRound: null }), 900)
       }
-      set({ game: draft })
-      setTimeout(step, 450)
+      setTimeout(step, beat ? 1000 : 520)
     }
     step()
   },

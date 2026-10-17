@@ -1,222 +1,378 @@
-import { useEffect, useRef } from 'react'
-import { GridView } from './components/GridView'
-import { InfluenceBoard, PLAYER_COLORS } from './components/InfluenceBoard'
-import { MarketView } from './components/MarketView'
+import { useEffect, useState } from 'react'
+import { CastleGrid } from './components/CastleGrid'
+import { HowToPlay } from './components/HowToPlay'
+import {
+  InfluenceTracks,
+  InstructionBar,
+  PlayerCard,
+  Resources,
+} from './components/Hud'
+import { Market } from './components/Market'
+import { RichText } from './components/RichText'
 import { ScoreScreen } from './components/ScoreScreen'
 import { SetupScreen } from './components/SetupScreen'
+import { Sprite } from './components/Sprite'
 import { canUseMarketAction, cur } from './engine/engine'
 import type { CellIndex } from './engine/types'
 import { TOTAL_ROUNDS } from './engine/types'
 import { useGame } from './store/gameStore'
 
+const SEEN_HELP = 'kc_seen_help'
+
+/** "You" -> "Your Castle"; anyone else -> "Ada's Castle". */
+function castleLabel(name: string): string {
+  if (name.toLowerCase() === 'you') return 'Your Castle'
+  return `${name}${name.endsWith('s') ? "'" : "'s"} Castle`
+}
+
 export default function App() {
   const game = useGame((s) => s.game)
   const aiPlayers = useGame((s) => s.aiPlayers)
-  const { newGame, moveHerald, refreshRow, buy, vagabond, place } = useGame()
+  const avatars = useGame((s) => s.avatars)
+  const beatingCells = useGame((s) => s.beatingCells)
+  const heartbeatRound = useGame((s) => s.heartbeatRound)
+  const { newGame, quit, moveHerald, refreshRow, buy, vagabond, place } = useGame()
+
+  const [help, setHelp] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
+
+  // Show the primer automatically the very first time.
+  useEffect(() => {
+    if (!localStorage.getItem(SEEN_HELP)) {
+      setHelp(true)
+      localStorage.setItem(SEEN_HELP, '1')
+    }
+  }, [])
 
   if (!game) {
-    return <SetupScreen onStart={(cfg, ai) => newGame(cfg, ai)} />
+    return (
+      <>
+        <SetupScreen
+          onStart={(cfg, ai, avs) => newGame(cfg, ai, avs)}
+          onHelp={() => setHelp(true)}
+        />
+        {help && <HowToPlay onClose={() => setHelp(false)} />}
+      </>
+    )
   }
 
   if (game.phase === 'gameOver') {
-    return <ScoreScreen game={game} onNewGame={() => useGame.setState({ game: null })} />
+    return (
+      <ScoreScreen game={game} avatars={avatars} onNewGame={quit} />
+    )
   }
 
   const player = cur(game)
-  const isHumanTurn = !aiPlayers.has(game.current) && !player.isAutoma
-  const awaitingPlacement = game.phase === 'awaitingPlacement'
+  const isAI = aiPlayers.has(game.current) || player.isAutoma
+  const isHumanTurn = !isAI
+  const placing = game.phase === 'awaitingPlacement'
+  const opponents = game.players.filter((p) => p.id !== game.current)
 
   return (
-    <div className="min-h-screen p-3 md:p-5 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <header className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-amber-100" style={{ fontFamily: 'var(--font-display)' }}>
-          Keep &amp; Court
-        </h1>
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-amber-200/80">
-            Round <b className="text-amber-100">{game.round}</b>/{TOTAL_ROUNDS}
-          </span>
-          <span className="text-amber-200/80">
-            Era <b className="text-amber-100">{game.era}</b>
-          </span>
-          <button
-            onClick={() => useGame.setState({ game: null })}
-            className="text-xs text-amber-200/50 hover:text-amber-100 underline"
-          >
-            quit
-          </button>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-        {/* LEFT: market + current player board */}
-        <div className="space-y-4">
-          {/* Turn banner */}
-          <div
-            className="rounded-xl px-4 py-2 flex items-center justify-between"
-            style={{ background: `${PLAYER_COLORS[game.current % 4]}22`, border: `1px solid ${PLAYER_COLORS[game.current % 4]}55` }}
-          >
-            <span className="font-semibold text-amber-100">
-              {player.isAutoma
-                ? '🤖 Steward is advancing influence…'
-                : aiPlayers.has(game.current)
-                  ? `🤖 ${player.name} is thinking…`
-                  : `${player.name}'s turn`}
-            </span>
-            <span className="text-sm">
-              {awaitingPlacement ? '📍 Place your card' : '🛒 Buy a card'}
+    <div className="min-h-screen p-3 md:p-4">
+      <div className="max-w-[1320px] mx-auto space-y-3">
+        {/* ---------- Top bar ---------- */}
+        <header
+          className="flex items-center gap-3 px-3 py-2"
+          style={{
+            background: 'var(--color-parch)',
+            border: '3px solid var(--color-ink)',
+            boxShadow: '0 4px 0 0 var(--color-ink)',
+          }}
+        >
+          <div className="flex items-center gap-1.5">
+            <Sprite name="icon-crown" size={18} />
+            <span style={{ fontFamily: 'var(--font-title)', fontSize: 11 }}>
+              KEEP &amp; COURT
             </span>
           </div>
 
-          {/* Market */}
-          <div className="rounded-xl bg-black/20 p-3">
-            <MarketView
-              game={game}
-              interactive={isHumanTurn}
-              onBuy={buy}
-              onVagabond={vagabond}
-            />
-            {/* Market actions */}
-            {isHumanTurn && game.phase === 'awaitingBuy' && (
-              <div className="flex gap-2 mt-3">
-                <button
-                  disabled={!canUseMarketAction(game)}
-                  onClick={moveHerald}
-                  className="text-xs rounded-lg px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-amber-100"
-                >
-                  🗝️ Move Herald (−1 key)
-                </button>
-                <button
-                  disabled={!canUseMarketAction(game)}
-                  onClick={refreshRow}
-                  className="text-xs rounded-lg px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-amber-100"
-                >
-                  🔄 Refresh row (−1 key)
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Pending placement choices */}
-          {isHumanTurn && awaitingPlacement && game.pendingPlacement && (
-            <PlacementBanner />
-          )}
-
-          {/* Current player grid */}
-          <div className="rounded-xl bg-black/20 p-3">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-amber-100">{player.name}'s Castle</h3>
-              <ResourceBar coins={player.coins} keys={player.keys} />
-            </div>
-            <div className="max-w-sm mx-auto">
-              <GridView
-                player={player}
-                active={isHumanTurn}
-                awaitingPlacement={awaitingPlacement}
-                onPlace={(cell: CellIndex) => place(cell)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: influence, opponents, log */}
-        <div className="space-y-4">
-          <InfluenceBoard game={game} />
-
-          {/* Opponents mini-boards */}
-          <div className="space-y-3">
-            {game.players
-              .filter((p) => p.id !== game.current && !p.isAutoma)
-              .map((p) => (
-                <div key={p.id} className="rounded-xl bg-black/20 p-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-amber-100 flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full" style={{ background: PLAYER_COLORS[p.id % 4] }} />
-                      {p.name}
-                    </span>
-                    <ResourceBar coins={p.coins} keys={p.keys} small />
-                  </div>
-                  <div className="max-w-[180px]">
-                    <GridView player={p} active={false} awaitingPlacement={false} />
-                  </div>
-                </div>
+          {/* round pips */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span
+              className="text-ink-soft uppercase"
+              style={{ fontFamily: 'var(--font-pixel)', fontSize: 9 }}
+            >
+              Round
+            </span>
+            <div className="flex gap-[3px]">
+              {Array.from({ length: TOTAL_ROUNDS }, (_, i) => (
+                <span
+                  key={i}
+                  title={`Round ${i + 1}`}
+                  style={{
+                    width: 11,
+                    height: 11,
+                    border: '2px solid var(--color-ink)',
+                    background:
+                      i + 1 < game.round
+                        ? 'var(--color-ink-soft)'
+                        : i + 1 === game.round
+                          ? 'var(--color-gold)'
+                          : 'transparent',
+                  }}
+                />
               ))}
+            </div>
+            <span
+              className="ml-1 px-1.5"
+              style={{
+                fontFamily: 'var(--font-pixel)',
+                fontSize: 9,
+                background: 'var(--color-keep)',
+                color: 'var(--color-parch)',
+                border: '2px solid var(--color-ink)',
+              }}
+            >
+              ERA {game.era}
+            </span>
           </div>
 
-          {/* Log */}
-          <LogPanel />
+          <button
+            className="btn px-2 py-1"
+            style={{ fontSize: 10 }}
+            onClick={() => setHelp(true)}
+          >
+            ?
+          </button>
+          <button
+            className="btn px-2 py-1"
+            style={{ fontSize: 10 }}
+            onClick={quit}
+          >
+            Quit
+          </button>
+        </header>
+
+        {/* ---------- What to do now + your purse ---------- */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+          <InstructionBar game={game} isAI={isAI} />
+          <div
+            className="flex items-center justify-center gap-4 px-4 py-2"
+            style={{
+              background: 'var(--color-parch)',
+              border: '3px solid var(--color-ink)',
+              boxShadow: '0 4px 0 0 var(--color-ink)',
+            }}
+          >
+            <Resources coins={player.coins} keys={player.keys} big />
+          </div>
+        </div>
+
+        {/* ---------- Main: market | castle | side ---------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_236px] gap-3 items-start">
+          {/* Market column is sized to fit exactly 3 cards + the row label:
+              22 (section pad/border) + 22 (row pad/border) + 66 (label)
+              + 8 (gap) + 3*130 + 2*8 (card gaps) = 524 */}
+          <div className="grid grid-cols-1 xl:grid-cols-[524px_minmax(0,1fr)] gap-3 items-start min-w-0">
+            {/* Market */}
+            <section
+              className="p-2 min-w-0"
+              style={{
+                background: 'rgba(0,0,0,0.22)',
+                border: '3px solid var(--color-ink)',
+              }}
+            >
+              <div className="overflow-x-auto scroll-parch">
+                <div className="min-w-[480px]">
+                  <Market
+                    game={game}
+                    interactive={isHumanTurn}
+                    onBuy={buy}
+                    onVagabond={vagabond}
+                  />
+                </div>
+              </div>
+
+              {isHumanTurn && game.phase === 'awaitingBuy' && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <button
+                    className="btn px-2.5 py-1.5 flex items-center gap-1.5"
+                    style={{ fontSize: 10 }}
+                    disabled={!canUseMarketAction(game)}
+                    onClick={moveHerald}
+                    title="Spend 1 key to move the Herald to the other row"
+                  >
+                    <Sprite name="icon-key" size={13} /> Switch row
+                  </button>
+                  <button
+                    className="btn px-2.5 py-1.5 flex items-center gap-1.5"
+                    style={{ fontSize: 10 }}
+                    disabled={!canUseMarketAction(game)}
+                    onClick={refreshRow}
+                    title="Spend 1 key to replace all 3 cards in the Herald's row"
+                  >
+                    <Sprite name="icon-key" size={13} /> New cards
+                  </button>
+                  <span className="text-parch/60" style={{ fontSize: 10 }}>
+                    {canUseMarketAction(game)
+                      ? 'Costs 1 key — once per turn.'
+                      : player.keys < 1
+                        ? 'No keys left.'
+                        : 'Already used this turn.'}
+                  </span>
+                </div>
+              )}
+            </section>
+
+            {/* Your castle */}
+            <section
+              className="p-2 min-w-0"
+              style={{
+                background: 'rgba(0,0,0,0.22)',
+                border: '3px solid var(--color-ink)',
+              }}
+            >
+              <div className="flex items-center justify-between mb-2 px-1">
+                <h2
+                  className="text-parch"
+                  style={{ fontFamily: 'var(--font-pixel)', fontSize: 11 }}
+                >
+                  {castleLabel(player.name)}
+                </h2>
+                <span className="text-parch/60" style={{ fontSize: 10 }}>
+                  {player.grid.filter(Boolean).length}/9 hired
+                </span>
+              </div>
+              <div className="max-w-[392px] mx-auto">
+                <CastleGrid
+                  player={player}
+                  placing={placing}
+                  canInteract={isHumanTurn}
+                  onPlace={(c: CellIndex) => place(c)}
+                  beatingCells={game.current === 0 ? beatingCells : []}
+                />
+              </div>
+            </section>
+          </div>
+
+          {/* ---------- Side column ---------- */}
+          <aside className="space-y-3">
+            <Panel title="Influence">
+              <InfluenceTracks game={game} />
+              <p className="mt-1.5 text-parch/60" style={{ fontSize: 10 }}>
+                Leaders score at rounds 3 / 6 / 9.
+              </p>
+            </Panel>
+
+            <Panel title={opponents.length > 1 ? 'Rivals' : 'Rival'}>
+              <div className="space-y-2">
+                {opponents.map((p) => (
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    avatar={avatars[p.id] ?? 'knight'}
+                    active={false}
+                    showGrid={!p.isAutoma}
+                  />
+                ))}
+              </div>
+            </Panel>
+
+            <Panel title="Edicts">
+              <ul className="space-y-1">
+                {game.edicts.map((e) => (
+                  <li
+                    key={e.id}
+                    className="px-1.5 py-1 text-parch"
+                    style={{
+                      fontSize: 10,
+                      background: 'rgba(0,0,0,0.25)',
+                      border: '2px solid rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    <b style={{ fontFamily: 'var(--font-pixel)', fontSize: 9 }}>
+                      {e.name}
+                    </b>
+                    <br />
+                    <RichText text={e.text} size={11} />
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+
+            <div>
+              <button
+                className="btn w-full py-1.5"
+                style={{ fontSize: 10 }}
+                onClick={() => setLogOpen((v) => !v)}
+              >
+                {logOpen ? 'Hide' : 'Show'} history
+              </button>
+              {logOpen && (
+                <div
+                  className="mt-2 p-2 max-h-48 overflow-y-auto scroll-parch space-y-0.5"
+                  style={{
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '3px solid var(--color-ink)',
+                  }}
+                >
+                  {game.log
+                    .slice(-40)
+                    .reverse()
+                    .map((e, i) => (
+                      <div
+                        key={i}
+                        className="text-parch/75"
+                        style={{ fontSize: 10 }}
+                      >
+                        {e.text}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
       </div>
-    </div>
-  )
-}
 
-function ResourceBar({ coins, keys, small }: { coins: number; keys: number; small?: boolean }) {
-  return (
-    <div className={`flex gap-3 ${small ? 'text-xs' : 'text-sm'} font-semibold`}>
-      <span className="text-yellow-300">🪙 {coins}</span>
-      <span className="text-amber-200">🗝️ {keys}</span>
-    </div>
-  )
-}
-
-function PlacementBanner() {
-  const game = useGame((s) => s.game)!
-  const { pendingChoices, setChoices } = useGame()
-  const card = game.pendingPlacement!.def
-  const hasHeraldChoice =
-    !game.pendingPlacement!.faceDown &&
-    typeof card.onHire === 'string' &&
-    card.onHire.includes('mayMoveHerald')
-
-  return (
-    <div className="rounded-xl bg-amber-400/10 border border-amber-400/40 px-4 py-2 flex items-center justify-between gap-3">
-      <span className="text-sm text-amber-100">
-        Placing <b>{card.name}</b> — pick a highlighted cell.
-      </span>
-      {hasHeraldChoice && (
-        <label className="text-xs flex items-center gap-1.5 text-amber-200">
-          <input
-            type="checkbox"
-            checked={!!pendingChoices.moveHerald}
-            onChange={(e) => setChoices({ moveHerald: e.target.checked })}
-          />
-          move Herald
-        </label>
-      )}
-    </div>
-  )
-}
-
-function LogPanel() {
-  const game = useGame((s) => s.game)!
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.scrollTo({ top: ref.current.scrollHeight })
-  }, [game.log.length])
-
-  const icon: Record<string, string> = {
-    buy: '🛒',
-    place: '📍',
-    effect: '⚡',
-    pulse: '💓',
-    era: '🏆',
-    score: '🏁',
-    system: '•',
-  }
-
-  return (
-    <div className="rounded-xl bg-black/30 p-3 inset-panel">
-      <h3 className="text-sm font-semibold text-amber-100 mb-2">Chronicle</h3>
-      <div ref={ref} className="h-48 overflow-y-auto space-y-1 text-[11px] text-amber-200/70 pr-1">
-        {game.log.slice(-60).map((e, i) => (
-          <div key={i} className="flex gap-1.5">
-            <span className="opacity-60">{icon[e.kind] ?? '•'}</span>
-            <span>{e.text}</span>
+      {/* ---------- Heartbeat flash ---------- */}
+      {heartbeatRound != null && (
+        <div className="fixed inset-x-0 top-3 flex justify-center pointer-events-none z-40">
+          <div
+            className="flex items-center gap-2 px-4 py-2 anim-pop"
+            style={{
+              background: '#c7442f',
+              border: '3px solid var(--color-ink)',
+              boxShadow: '0 4px 0 0 var(--color-ink)',
+              color: '#fff6e6',
+            }}
+          >
+            <Sprite name="icon-pulse" size={18} className="anim-beat" />
+            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: 12 }}>
+              Heartbeat — pulse powers fire
+            </span>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {help && <HowToPlay onClose={() => setHelp(false)} />}
     </div>
+  )
+}
+
+function Panel({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section
+      className="p-2"
+      style={{
+        background: 'rgba(0,0,0,0.22)',
+        border: '3px solid var(--color-ink)',
+      }}
+    >
+      <h3
+        className="mb-1.5 text-parch uppercase"
+        style={{ fontFamily: 'var(--font-pixel)', fontSize: 10, letterSpacing: 1 }}
+      >
+        {title}
+      </h3>
+      {children}
+    </section>
   )
 }

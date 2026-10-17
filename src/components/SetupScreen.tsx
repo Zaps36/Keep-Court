@@ -1,163 +1,221 @@
 import { useState } from 'react'
 import { dateSeed } from '../engine/rng'
 import type { GameConfig } from '../engine/types'
+import { AVATAR_IDS, AVATAR_LABELS, AvatarSprite, Sprite } from './Sprite'
+
+type Mode = 'bot' | 'solo' | 'hotseat' | 'daily'
+
+const MODES: { id: Mode; label: string; blurb: string }[] = [
+  { id: 'bot', label: 'vs Bots', blurb: 'Play against 1-3 computer rivals.' },
+  { id: 'solo', label: 'Solo', blurb: 'Race the Steward for influence.' },
+  { id: 'hotseat', label: 'Hotseat', blurb: 'Pass one device, 2-4 players.' },
+  { id: 'daily', label: 'Daily', blurb: 'Same deck for everyone today.' },
+]
 
 interface Props {
-  onStart: (config: GameConfig, aiPlayers: number[]) => void
+  onStart: (config: GameConfig, aiPlayers: number[], avatars: string[]) => void
+  onHelp: () => void
 }
 
-type Mode = 'hotseat' | 'bot' | 'solo' | 'daily'
-
-export function SetupScreen({ onStart }: Props) {
+export function SetupScreen({ onStart, onHelp }: Props) {
   const [mode, setMode] = useState<Mode>('bot')
-  const [humans, setHumans] = useState(1)
-  const [bots, setBots] = useState(1)
+  const [count, setCount] = useState(1)
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal')
+  const [avatar, setAvatar] = useState<string>('knight')
 
   const start = () => {
     let names: string[] = []
-    const aiPlayers: number[] = []
+    const ai: number[] = []
+    let avatars: string[] = []
     let automa = false
     let seed = Math.floor(Math.random() * 0xffffffff)
 
+    const others = AVATAR_IDS.filter((a) => a !== avatar)
+
     if (mode === 'hotseat') {
-      names = Array.from({ length: humans }, (_, i) => `Player ${i + 1}`)
+      names = Array.from({ length: count + 1 }, (_, i) =>
+        i === 0 ? 'You' : `Player ${i + 1}`,
+      )
+      avatars = [avatar, ...others.slice(0, count)]
     } else if (mode === 'bot') {
-      names = [
-        'You',
-        ...Array.from({ length: bots }, (_, i) => `Bot ${i + 1}`),
-      ]
-      for (let i = 1; i <= bots; i++) aiPlayers.push(i)
-    } else if (mode === 'solo') {
+      names = ['You', ...Array.from({ length: count }, (_, i) => `Bot ${i + 1}`)]
+      for (let i = 1; i <= count; i++) ai.push(i)
+      avatars = [avatar, ...others.slice(0, count)]
+    } else {
       names = ['You', 'Steward']
       automa = true
-    } else if (mode === 'daily') {
-      names = ['You', 'Steward']
-      automa = true
-      seed = dateSeed()
+      avatars = [avatar, 'steward']
+      if (mode === 'daily') seed = dateSeed()
     }
 
-    onStart({ playerNames: names, automa, automaDifficulty: difficulty, seed }, aiPlayers)
+    onStart(
+      { playerNames: names, automa, automaDifficulty: difficulty, seed },
+      ai,
+      avatars,
+    )
   }
 
-  return (
-    <div className="max-w-xl mx-auto px-6 py-10 text-center">
-      <h1
-        className="text-5xl font-bold text-amber-100 mb-1"
-        style={{ fontFamily: 'var(--font-display)' }}
-      >
-        Keep &amp; Court
-      </h1>
-      <p className="text-amber-200/70 mb-8 italic">
-        Shop characters into your 3×3 castle. Your combos beat each round. Race the whole court for Influence.
-      </p>
+  const showCount = mode === 'bot' || mode === 'hotseat'
+  const showDiff = mode !== 'hotseat'
 
-      <div className="rounded-2xl bg-black/30 p-6 space-y-6 inset-panel text-left">
-        <div>
-          <label className="block text-xs uppercase tracking-wider text-amber-200/60 mb-2">
-            Mode
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {([
-              ['bot', '🤖 vs Bots'],
-              ['solo', '🧩 Solo (Steward)'],
-              ['hotseat', '👥 Hotseat'],
-              ['daily', '📅 Daily Puzzle'],
-            ] as [Mode, string][]).map(([m, label]) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  mode === m
-                    ? 'bg-amber-400 text-black'
-                    : 'bg-white/5 text-amber-100 hover:bg-white/10'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-lg">
+        {/* Title plate */}
+        <div
+          className="text-center mb-4 px-4 py-5"
+          style={{
+            background: 'var(--color-parch)',
+            border: '4px solid var(--color-ink)',
+            boxShadow: '0 6px 0 0 var(--color-ink)',
+          }}
+        >
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Sprite name="icon-crown" size={26} />
+            <h1
+              className="leading-none"
+              style={{ fontFamily: 'var(--font-title)', fontSize: 20 }}
+            >
+              KEEP
+            </h1>
+            <span style={{ fontFamily: 'var(--font-title)', fontSize: 14 }}>&amp;</span>
+            <h1
+              className="leading-none"
+              style={{ fontFamily: 'var(--font-title)', fontSize: 20 }}
+            >
+              COURT
+            </h1>
+            <Sprite name="icon-crown" size={26} />
           </div>
+          <p style={{ fontSize: 12 }} className="text-ink-soft">
+            Hire nine souls. Build a 3x3 castle. Your combos beat every round.
+          </p>
         </div>
 
-        {mode === 'hotseat' && (
-          <Stepper label="Players" value={humans} setValue={setHumans} min={2} max={4} />
-        )}
-        {mode === 'bot' && (
-          <Stepper label="Bots" value={bots} setValue={setBots} min={1} max={3} />
-        )}
-        {(mode === 'solo' || mode === 'daily' || mode === 'bot') && (
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-amber-200/60 mb-2">
-              {mode === 'bot' ? 'Bot' : 'Steward'} difficulty
-            </label>
-            <div className="flex gap-2">
-              {(['easy', 'normal', 'hard'] as const).map((d) => (
+        <div className="panel p-4 space-y-4">
+          {/* Avatar picker */}
+          <Field label="Your portrait">
+            <div className="flex flex-wrap gap-2">
+              {AVATAR_IDS.map((id) => (
                 <button
-                  key={d}
-                  onClick={() => setDifficulty(d)}
-                  className={`flex-1 rounded-lg px-3 py-2 text-sm capitalize transition ${
-                    difficulty === d
-                      ? 'bg-amber-400 text-black'
-                      : 'bg-white/5 text-amber-100 hover:bg-white/10'
-                  }`}
+                  key={id}
+                  onClick={() => setAvatar(id)}
+                  title={AVATAR_LABELS[id]}
+                  className="p-0.5 transition-transform hover:-translate-y-0.5"
+                  style={{
+                    border: `3px solid ${
+                      avatar === id ? 'var(--color-gold)' : 'rgba(43,29,19,0.3)'
+                    }`,
+                    background: avatar === id ? 'var(--color-gold-light)' : '#fff',
+                    lineHeight: 0,
+                  }}
                 >
-                  {d}
+                  <AvatarSprite id={id} size={42} />
                 </button>
               ))}
             </div>
+            <p className="mt-1 text-ink-soft" style={{ fontSize: 11 }}>
+              Playing as <b>{AVATAR_LABELS[avatar]}</b>
+            </p>
+          </Field>
+
+          {/* Mode */}
+          <Field label="Mode">
+            <div className="grid grid-cols-2 gap-2">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setMode(m.id)}
+                  className="btn px-2 py-2 text-left"
+                  style={{
+                    background:
+                      mode === m.id ? 'var(--color-gold)' : 'var(--color-parch-2)',
+                  }}
+                >
+                  <span style={{ fontSize: 11 }}>{m.label}</span>
+                  <span
+                    className="block text-ink-soft"
+                    style={{ fontFamily: 'var(--font-body)', fontSize: 10 }}
+                  >
+                    {m.blurb}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          {showCount && (
+            <Field label={mode === 'bot' ? 'Number of bots' : 'Other players'}>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setCount(n)}
+                    className="btn w-11 py-1.5"
+                    style={{
+                      fontSize: 13,
+                      background:
+                        count === n ? 'var(--color-gold)' : 'var(--color-parch-2)',
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
+
+          {showDiff && (
+            <Field label="Difficulty">
+              <div className="flex gap-2">
+                {(['easy', 'normal', 'hard'] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDifficulty(d)}
+                    className="btn flex-1 py-1.5 capitalize"
+                    style={{
+                      fontSize: 11,
+                      background:
+                        difficulty === d
+                          ? 'var(--color-gold)'
+                          : 'var(--color-parch-2)',
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button className="btn px-3 py-3" style={{ fontSize: 11 }} onClick={onHelp}>
+              How to play
+            </button>
+            <button
+              className="btn btn-primary flex-1 py-3"
+              style={{ fontSize: 14 }}
+              onClick={start}
+            >
+              Begin
+            </button>
           </div>
-        )}
-
-        {mode === 'daily' && (
-          <p className="text-xs text-amber-200/60">
-            Everyone gets the same deck order today. Compare scores!
-          </p>
-        )}
-
-        <button
-          onClick={start}
-          className="w-full rounded-xl bg-gradient-to-b from-amber-300 to-amber-500 text-black font-bold py-3 text-lg hover:brightness-110 transition card-shadow"
-        >
-          Begin the Game
-        </button>
+        </div>
       </div>
     </div>
   )
 }
 
-function Stepper({
-  label,
-  value,
-  setValue,
-  min,
-  max,
-}: {
-  label: string
-  value: number
-  setValue: (n: number) => void
-  min: number
-  max: number
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs uppercase tracking-wider text-amber-200/60 mb-2">
+      <div
+        className="mb-1.5 text-ink-soft uppercase"
+        style={{ fontFamily: 'var(--font-pixel)', fontSize: 9, letterSpacing: 1 }}
+      >
         {label}
-      </label>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setValue(Math.max(min, value - 1))}
-          className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 text-amber-100 text-xl"
-        >
-          −
-        </button>
-        <span className="text-2xl font-bold text-amber-100 w-8 text-center">{value}</span>
-        <button
-          onClick={() => setValue(Math.min(max, value + 1))}
-          className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 text-amber-100 text-xl"
-        >
-          +
-        </button>
       </div>
+      {children}
     </div>
   )
 }

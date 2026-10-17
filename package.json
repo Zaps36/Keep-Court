@@ -1,15 +1,21 @@
 {
-  "name": "keep-and-court-app",
+  "name": "keep-and-court",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "art": "node tools/gen-art.mjs",
+    "selfcheck": "tsx src/engine/selfcheck.ts",
+    "uitest": "node tools/uitest.mjs",
+    "test:all": "npm run selfcheck && npm run build && node tools/uitest.mjs bot && node tools/uitest.mjs solo && node tools/uitest.mjs hotseat && node tools/uitest.mjs daily"
   },
   "dependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "@fontsource/silkscreen": "^5.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zustand": "^5.0.15"
@@ -23,6 +29,7 @@
     "oxlint": "^1.81.0",
     "playwright": "^1.64.1",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   }

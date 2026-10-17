@@ -1,90 +1,210 @@
+import { useEffect, useState } from 'react'
 import type { GameState } from '../engine/types'
-import { PLAYER_COLORS } from './InfluenceBoard'
+import { CastleGrid } from './CastleGrid'
+import { SEAT_COLORS } from './Hud'
+import { AvatarSprite, Sprite } from './Sprite'
 
 interface Props {
   game: GameState
+  avatars: string[]
   onNewGame: () => void
 }
 
-export function ScoreScreen({ game, onNewGame }: Props) {
+export function ScoreScreen({ game, avatars, onNewGame }: Props) {
   const ranked = [...game.players].sort(
     (a, b) => (b.score?.total ?? 0) - (a.score?.total ?? 0),
   )
   const winner = ranked[0]
+  const you = game.players[0]
+  const total = useCountUp(winner.score?.total ?? 0)
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10">
-      <div className="text-center mb-8">
-        <div className="text-5xl mb-2">👑</div>
-        <h1 className="text-4xl font-bold text-amber-100" style={{ fontFamily: 'var(--font-display)' }}>
-          {winner.name} wins!
-        </h1>
-        <p className="text-amber-200/70 mt-1">{winner.score?.total} victory points</p>
-      </div>
+    <div className="min-h-screen p-4">
+      <div className="max-w-3xl mx-auto space-y-4">
+        {/* Winner plate */}
+        <div
+          className="text-center px-4 py-5 anim-pop"
+          style={{
+            background: 'var(--color-parch)',
+            border: '4px solid var(--color-ink)',
+            boxShadow: '0 6px 0 0 var(--color-ink)',
+          }}
+        >
+          <div className="flex justify-center mb-2">
+            <Sprite name="icon-crown" size={40} />
+          </div>
+          <h1 style={{ fontFamily: 'var(--font-title)', fontSize: 18 }}>
+            {winner.name} wins
+          </h1>
+          <div
+            className="mt-1 flex items-center justify-center gap-1"
+            style={{ fontFamily: 'var(--font-pixel)', fontSize: 22 }}
+          >
+            {total}
+            <Sprite name="icon-crown" size={20} />
+          </div>
+        </div>
 
-      <div className="space-y-4">
-        {ranked.map((p, rank) => {
-          const s = p.score!
-          return (
-            <div key={p.id} className="rounded-xl bg-black/30 p-4 inset-panel">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-xl font-bold text-amber-200/50 w-6">#{rank + 1}</span>
-                <span
-                  className="w-4 h-4 rounded-full"
-                  style={{ background: PLAYER_COLORS[p.id % 4] }}
-                />
-                <span className="font-semibold text-amber-100 flex-1">{p.name}</span>
-                <span className="text-2xl font-bold text-amber-100">{s.total}</span>
+        {/* Standings */}
+        <div className="space-y-2">
+          {ranked.map((p, rank) => {
+            const s = p.score!
+            return (
+              <div
+                key={p.id}
+                className="px-3 py-2"
+                style={{
+                  background: 'var(--color-parch)',
+                  border: '3px solid var(--color-ink)',
+                  boxShadow: '0 4px 0 0 var(--color-ink)',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    style={{ fontFamily: 'var(--font-pixel)', fontSize: 13 }}
+                    className="w-7 text-ink-soft"
+                  >
+                    #{rank + 1}
+                  </span>
+                  <span
+                    style={{
+                      border: '2px solid var(--color-ink)',
+                      background: SEAT_COLORS[p.id % 4],
+                      lineHeight: 0,
+                    }}
+                  >
+                    <AvatarSprite id={avatars[p.id] ?? 'knight'} size={30} />
+                  </span>
+                  <span
+                    className="flex-1"
+                    style={{ fontFamily: 'var(--font-pixel)', fontSize: 12 }}
+                  >
+                    {p.name}
+                  </span>
+                  <span
+                    className="flex items-center gap-1"
+                    style={{ fontFamily: 'var(--font-pixel)', fontSize: 16 }}
+                  >
+                    {s.total}
+                    <Sprite name="icon-crown" size={15} />
+                  </span>
+                </div>
+
+                {!p.isAutoma ? (
+                  <div className="mt-2 grid grid-cols-5 gap-1.5">
+                    <Stat label="Cards" value={s.cards} icon="icon-crown" />
+                    <Stat label="Coffers" value={s.coffers} icon="icon-coffer" />
+                    <Stat label="Keys" value={s.keys} icon="icon-key" />
+                    <Stat label="Influence" value={s.banked} icon="icon-shield" />
+                    <Stat label="Edicts" value={s.edicts} icon="icon-crown" />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-ink-soft" style={{ fontSize: 11 }}>
+                    The Steward scored {s.banked} from influence majorities.
+                  </p>
+                )}
+
+                {!p.isAutoma && s.edictDetail.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {s.edictDetail.map((e) => (
+                      <span
+                        key={e.id}
+                        className="px-1.5 py-0.5"
+                        style={{
+                          fontSize: 10,
+                          background: e.vp > 0 ? '#cde8d0' : 'rgba(0,0,0,0.06)',
+                          border: '1px solid rgba(43,29,19,0.25)',
+                        }}
+                      >
+                        {e.name}: {e.vp > 0 ? '+' : ''}
+                        {e.vp}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              {!p.isAutoma && (
-                <div className="grid grid-cols-5 gap-2 text-center text-xs">
-                  <Stat label="Cards" value={s.cards} />
-                  <Stat label="Coffers" value={s.coffers} />
-                  <Stat label="Keys" value={s.keys} />
-                  <Stat label="Influence" value={s.banked} />
-                  <Stat label="Edicts" value={s.edicts} />
-                </div>
-              )}
-              {p.isAutoma && (
-                <div className="text-center text-xs text-amber-200/60">
-                  Steward scored {s.banked} from Influence majorities.
-                </div>
-              )}
-              {!p.isAutoma && s.edictDetail.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2 justify-center">
-                  {s.edictDetail.map((e) => (
-                    <span
-                      key={e.id}
-                      className={`text-[10px] px-2 py-0.5 rounded ${
-                        e.vp > 0 ? 'bg-emerald-800/40 text-emerald-200' : 'bg-white/5 text-amber-200/40'
-                      }`}
-                    >
-                      {e.name}: {e.vp > 0 ? '+' : ''}
-                      {e.vp}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
 
-      <button
-        onClick={onNewGame}
-        className="mt-8 w-full rounded-xl bg-gradient-to-b from-amber-300 to-amber-500 text-black font-bold py-3 text-lg hover:brightness-110 transition card-shadow"
-      >
-        Play Again
-      </button>
+        {/* Your castle, with per-card scores */}
+        {you.score && (
+          <div
+            className="p-3"
+            style={{
+              background: 'rgba(0,0,0,0.25)',
+              border: '3px solid var(--color-ink)',
+            }}
+          >
+            <h3
+              className="mb-2 text-parch"
+              style={{ fontFamily: 'var(--font-pixel)', fontSize: 11 }}
+            >
+              Your castle — points per card
+            </h3>
+            <div className="max-w-md mx-auto">
+              <CastleGrid player={you} perCard={you.score.perCard} />
+            </div>
+          </div>
+        )}
+
+        <button
+          className="btn btn-primary w-full py-3"
+          style={{ fontSize: 14 }}
+          onClick={onNewGame}
+        >
+          Play again
+        </button>
+      </div>
     </div>
   )
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  icon,
+}: {
+  label: string
+  value: number
+  icon: string
+}) {
   return (
-    <div className="rounded-lg bg-white/5 py-2">
-      <div className="text-base font-bold text-amber-100">{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-amber-200/50">{label}</div>
+    <div
+      className="text-center py-1.5"
+      style={{ background: 'rgba(0,0,0,0.06)', border: '2px solid rgba(43,29,19,0.2)' }}
+    >
+      <div className="flex items-center justify-center gap-1">
+        <Sprite name={icon} size={12} />
+        <span style={{ fontFamily: 'var(--font-pixel)', fontSize: 13 }}>{value}</span>
+      </div>
+      <div
+        className="text-ink-soft uppercase"
+        style={{ fontFamily: 'var(--font-pixel)', fontSize: 7, letterSpacing: 0.5 }}
+      >
+        {label}
+      </div>
     </div>
   )
+}
+
+/** Ticks a number up for a satisfying reveal. */
+function useCountUp(target: number, ms = 900) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (target <= 0) {
+      setN(0)
+      return
+    }
+    const start = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms)
+      setN(Math.round(target * (1 - Math.pow(1 - t, 3))))
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, ms])
+  return n
 }
