@@ -11,6 +11,7 @@
     "art": "node tools/gen-art.mjs",
     "selfcheck": "tsx src/engine/selfcheck.ts",
     "uitest": "node tools/uitest.mjs",
+    "verify:pages": "BASE_PATH=/Keep-Court/ npm run build && node tools/verify-pages.mjs /Keep-Court/",
     "test:all": "npm run selfcheck && npm run build && node tools/uitest.mjs bot && node tools/uitest.mjs solo && node tools/uitest.mjs hotseat && node tools/uitest.mjs daily"
   },
   "dependencies": {

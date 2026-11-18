@@ -150,7 +150,7 @@ export function Card({
         <EmblemSprite color={card.shields[0]} size={s.emblem} />
         <span
           className="leading-tight text-ink min-w-0 break-words"
-          style={{ fontFamily: 'var(--font-pixel)', fontSize: s.name }}
+          style={{ fontFamily: 'var(--font-pixel)', fontSize: nameFontSize(card.name, s.name) }}
         >
           {card.name}
         </span>
@@ -211,6 +211,17 @@ export function Card({
       )}
     </Tag>
   )
+}
+
+/**
+ * Shrink the title a little when a single word is too long for the card, so
+ * names like "Royal Astronomer" wrap between words instead of mid-word.
+ */
+function nameFontSize(name: string, base: number): number {
+  const longestWord = Math.max(...name.split(' ').map((w) => w.length))
+  if (longestWord >= 11) return base - 2
+  if (longestWord >= 9) return base - 1
+  return base
 }
 
 function PowerRow({

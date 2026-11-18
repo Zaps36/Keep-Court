@@ -86,12 +86,31 @@ src/
 - **Hotseat** — 2–4 players sharing one device
 - **Daily** — everyone gets the same deck order today (date-seeded)
 
+## Play online
+
+Every push to `main` builds and publishes to GitHub Pages via
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml):
+
+**https://zaps36.github.io/Keep-Court/**
+
+Project sites are served from a sub-path, so the build needs a matching
+`base`. The workflow sets `BASE_PATH=/<repo>/`; local dev and local builds stay
+at the root. To prove a Pages build before pushing:
+
+```bash
+npm run verify:pages
+```
+
+That serves `dist/` from `/Keep-Court/` exactly like github.io does and fails on
+unprefixed URLs, broken sprites, missing fonts, 404s or console errors.
+
 ## Testing
 
 ```bash
-npm run selfcheck   # 200 AI-vs-AI games, asserts engine invariants
-npm run uitest bot  # drives a real browser through a whole game
-npm run test:all    # engine + build + all four modes
+npm run selfcheck      # 200 AI-vs-AI games, asserts engine invariants
+npm run uitest bot     # drives a real browser through a whole game
+npm run test:all       # engine + build + all four modes
+npm run verify:pages   # validates the GitHub Pages sub-path build
 ```
 
 The UI harness plays a complete game with real clicks and fails on console errors,
